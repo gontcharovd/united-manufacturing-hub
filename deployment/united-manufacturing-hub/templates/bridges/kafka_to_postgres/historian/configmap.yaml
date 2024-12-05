@@ -416,9 +416,9 @@ data:
                             EXECUTE 'LOCK TABLE asset IN ACCESS EXCLUSIVE MODE';
                           END IF;
 
-                          -- Check and lock 'work_order' table
-                          IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'work_order') THEN
-                            EXECUTE 'LOCK TABLE work_order IN ACCESS EXCLUSIVE MODE';
+                          -- Check and lock 'work_order_custom' table
+                          IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'work_order_custom') THEN
+                            EXECUTE 'LOCK TABLE work_order_custom IN ACCESS EXCLUSIVE MODE';
                           END IF;
 
                           -- Create 'asset' table (if it doesn't exist)
@@ -462,9 +462,9 @@ data:
                           -- Allow grafanareader to access 'tag' table
                           GRANT SELECT ON umh_v2.public.tag TO grafanareader;
 
-                          -- Create 'work_order' table (if it doesn't exist)
-                          CREATE TABLE IF NOT EXISTS work_order (
-                            work_order_id INT4 PRIMARY KEY,
+                          -- Create 'work_order_custom' table (if it doesn't exist)
+                          CREATE TABLE IF NOT EXISTS work_order_custom (
+                            work_order_custom_id INT4 PRIMARY KEY,
                             asset_id INT4 NOT NULL REFERENCES asset(id),
                             product_id INT4 NOT NULL,
                             status INT4 NOT NULL,
@@ -472,16 +472,16 @@ data:
                             end_time TIMESTAMPTZ NOT NULL
                           );
 
-                          -- Create indexes for 'work_order' table if they don't exist
-                          CREATE INDEX IF NOT EXISTS idx_work_order_asset_id ON work_order (asset_id);
-                          CREATE INDEX IF NOT EXISTS idx_work_order_start_time ON work_order (start_time);
-                          CREATE INDEX IF NOT EXISTS idx_work_order_end_time ON work_order (end_time);
+                          -- Create indexes for 'work_order_custom' table if they don't exist
+                          CREATE INDEX IF NOT EXISTS idx_work_order_custom_asset_id ON work_order_custom (asset_id);
+                          CREATE INDEX IF NOT EXISTS idx_work_order_custom_start_time ON work_order_custom (start_time);
+                          CREATE INDEX IF NOT EXISTS idx_work_order_custom_end_time ON work_order_custom (end_time);
 
-                          -- Allow kafkatopostgresqlv2 to read/write to 'work_order' table
-                          ALTER TABLE work_order OWNER TO kafkatopostgresqlv2;
+                          -- Allow kafkatopostgresqlv2 to read/write to 'work_order_custom' table
+                          ALTER TABLE work_order_custom OWNER TO kafkatopostgresqlv2;
 
-                          -- Allow grafanareader to access 'work_order' table
-                          GRANT SELECT ON umh_v2.public.work_order TO grafanareader;
+                          -- Allow grafanareader to access 'work_order_custom' table
+                          GRANT SELECT ON umh_v2.public.work_order_custom TO grafanareader;
 
                         END
                         $$;
