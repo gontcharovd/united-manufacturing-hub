@@ -406,15 +406,39 @@ data:
                       init_statement: |
                         DO $$
                         BEGIN
+                          -- Check and lock 'tag' table
                           IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tag') THEN
-                            -- Lock the table to prevent concurrent modifications
                             EXECUTE 'LOCK TABLE tag IN ACCESS EXCLUSIVE MODE';
                           END IF;
+
+                          -- Check and lock 'asset' table
                           IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'asset') THEN
-                            -- Lock the table to prevent concurrent modifications
                             EXECUTE 'LOCK TABLE asset IN ACCESS EXCLUSIVE MODE';
                           END IF;
-                          -- Create tag table (if it doesn't exist)
+
+                          -- Check and lock 'work_order' table
+                          IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'work_order') THEN
+                            EXECUTE 'LOCK TABLE work_order IN ACCESS EXCLUSIVE MODE';
+                          END IF;
+
+                          -- Create 'asset' table (if it doesn't exist)
+                          CREATE TABLE IF NOT EXISTS asset (
+                            id SERIAL PRIMARY KEY,
+                            enterprise TEXT NOT NULL,
+                            site TEXT ,
+                            area TEXT,
+                            line TEXT,
+                            workcell TEXT,
+                            origin_id TEXT NOT NULL
+                          );
+
+                          -- Allow kafkatopostgresqlv2 to read/write to 'asset' table
+                          ALTER TABLE asset OWNER TO kafkatopostgresqlv2;
+
+                          -- Allow grafanareader to access 'asset' table
+                          GRANT SELECT ON umh_v2.public.asset TO grafanareader;
+
+                          -- Create 'tag' table (if it doesn't exist)
                           CREATE TABLE IF NOT EXISTS tag (
                             timestamp TIMESTAMPTZ NOT NULL,
                             name TEXT NOT NULL,
@@ -424,20 +448,40 @@ data:
                             UNIQUE (name, asset_id, timestamp)
                           );
 
-                          -- Convert the table into a hypertable (TimescaleDB specific)
+                          -- Convert the 'tag' table into a hypertable (TimescaleDB specific)
                           PERFORM create_hypertable('tag', 'timestamp', if_not_exists => TRUE);
 
-                          -- Create indexes if they don't exist
+                          -- Create indexes for 'tag' table if they don't exist
                           CREATE INDEX IF NOT EXISTS idx_tag_asset_timestamp ON tag (asset_id, timestamp DESC);
                           CREATE INDEX IF NOT EXISTS idx_tag_name ON tag (name);
                           CREATE INDEX IF NOT EXISTS idx_tag_asset_name ON tag (asset_id, name);
 
-                          -- Allow kafkatopostgresqlv2 to read/write to this table
+                          -- Allow kafkatopostgresqlv2 to read/write to 'tag' table
                           ALTER TABLE tag OWNER TO kafkatopostgresqlv2;
 
-                          -- Allow grafanareader to access this table
-                          GRANT SELECT ON umh_v2.public.asset TO grafanareader;
+                          -- Allow grafanareader to access 'tag' table
                           GRANT SELECT ON umh_v2.public.tag TO grafanareader;
+
+                          -- Create 'work_order' table (if it doesn't exist)
+                          CREATE TABLE IF NOT EXISTS work_order (
+                            work_order_id INT4 PRIMARY KEY,
+                            asset_id INT4 NOT NULL REFERENCES asset(id),
+                            product_id INT4 NOT NULL,
+                            status INT4 NOT NULL,
+                            start_time TIMESTAMPTZ NOT NULL,
+                            end_time TIMESTAMPTZ NOT NULL
+                          );
+
+                          -- Create indexes for 'work_order' table if they don't exist
+                          CREATE INDEX IF NOT EXISTS idx_work_order_asset_id ON work_order (asset_id);
+                          CREATE INDEX IF NOT EXISTS idx_work_order_start_time ON work_order (start_time);
+                          CREATE INDEX IF NOT EXISTS idx_work_order_end_time ON work_order (end_time);
+
+                          -- Allow kafkatopostgresqlv2 to read/write to 'work_order' table
+                          ALTER TABLE work_order OWNER TO kafkatopostgresqlv2;
+
+                          -- Allow grafanareader to access 'work_order' table
+                          GRANT SELECT ON umh_v2.public.work_order TO grafanareader;
 
                         END
                         $$;
